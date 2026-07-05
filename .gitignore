@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual Environments
+venv/
+.venv/
+env/
+.env
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# PyTorch / Deep Learning specific
+*.pth
+*.pt
+*.ckpt
+checkpoints/
+models/weights/
+logs/
+runs/
+tensorboard/
+wandb/
+core/
+
+# Datasets / Data directories
+data/
+datasets/
+SALICON/
+MIT1003/
+*.zip
+*.tar.gz
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
