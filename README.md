@@ -21,7 +21,11 @@ The codebase relies on a strict interface contract across the following modules:
 * `run.ipynb` - Main notebook for running experiments and generating report figures.
 
 ## Installation & Setup
-> **[TODO]:** Add conda/pip environment instructions, e.g., `requirements.txt` or `environment.yml`.
+```bash
+conda env create -f environment.yml
+conda activate nndl_saliency
+python -m ipykernel install --user --name nndl_saliency --display-name "Python (NNDL Saliency)"
+```
 
 ## Usage
 > **[TODO]:** Add quickstart commands for training and evaluation once `train.py` is fully wired up.
