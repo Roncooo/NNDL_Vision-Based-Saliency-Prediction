@@ -1,13 +1,13 @@
 import os
+from datetime import datetime
 
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-# TODO
-# from data import build_dataset
-# from models import build_model
-# from metrics import build_metrics
+from data import build_dataset # TODO
+from models import build_model # TODO
+from metrics import build_metrics
 from config import get_config
 from losses import build_loss
 from optimizers import build_optimizer
@@ -48,6 +48,7 @@ def validate(model, dataloader, criterion, metrics_dict, device):
     total_loss = 0.0
     
     progress_bar = tqdm(dataloader, desc="Validating")
+    results_metrics = {}
     
     for images, gts in progress_bar:
         images, gts = images.to(device), gts.to(device)
@@ -58,16 +59,19 @@ def validate(model, dataloader, criterion, metrics_dict, device):
         
         # iterate over registered metrics
         for metric_name, metric_fn in metrics_dict.items():
-            # TODO
-            pass 
+            if metric_name not in results_metrics:
+                results_metrics[metric_name] = 0.0
+            results_metrics[metric_name] += metric_fn(preds, gts)
             
     # compute final metrics over the whole epoch
     results = {"val_loss": total_loss / len(dataloader)}
-    # results.update({name: fn.compute() for name, fn in metrics_dict.items()})
+    for name, val in results_metrics.items():
+        results[name] = val / len(dataloader)
     
     return results
 
 def main(config_name):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     # load configuration
     config = get_config(config_name)
     
@@ -98,16 +102,16 @@ def main(config_name):
         train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
         val_results = validate(model, val_loader, criterion, metrics, device)
         
-        print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_results['val_loss']:.4f}")
-        # TODO other metrics
+        metrics_str = " | ".join([f"{k}: {v:.4f}" for k, v in val_results.items() if k != 'val_loss'])
+        print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_results['val_loss']:.4f} | {metrics_str}")
         
         train_losses.append(train_loss)
-        val_losses.append(val_results['val_loss'])
+        val_losses.append(val_results)
 
-        # save checkpoints here if val_loss improves
+        # save checkpoints if val_loss improves
         if val_results['val_loss'] < best_val_loss:
             best_val_loss = val_results['val_loss']
-            checkpoint_path = os.path.join('checkpoints', f'best_model_{config_name}.pth')
+            checkpoint_path = os.path.join('checkpoints', f'best_model_{config_name}_{timestamp}.pth')
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Saved new best model to {checkpoint_path}")
 
