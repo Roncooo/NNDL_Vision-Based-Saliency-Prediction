@@ -3,6 +3,7 @@ EXPERIMENTS = {
     "baseline": {
         "model": {"name": "SimpleUNet"},
         "loss": {"name": "MSE"},
+        "metrics": {"PCC": {}, "JSS": {}, "MSE": {}}, # as a dictionary to allow parameters
         "optimizer": {
             "name": "Adam",
             "lr": 1e-4,
