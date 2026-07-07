@@ -9,6 +9,7 @@ EXPERIMENTS = {
             "lr": 1e-4,
             "weight_decay": 1e-5
         },
+        "data_root": "./SALICON/",
         "batch_size": 32,
         "num_epochs": 10,
         "num_workers": 4
