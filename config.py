@@ -1,7 +1,7 @@
 EXPERIMENTS = {
     "baseline": {
         "dataset": {"name": "SALICON"},
-        "model": {"name": "SimpleUNet"},
+        "model": {"name": "BaselineCNN"},
         "loss": {"name": "MSE"},
         "metrics": {"PCC": {}, "JSS": {}, "MSE": {}}, # as a dictionary to allow parameters
         "optimizer": {
@@ -17,9 +17,23 @@ EXPERIMENTS = {
 
 
 # Wrapper class to allow dot notation access (e.g. config.metrics)
+# Also supports dict-style access (config["name"], config.get, iteration),
+# since losses.py / optimizers.py / metrics.py use that style.
 class ConfigNode:
     def __init__(self, d):
         self.__dict__.update({k: ConfigNode(v) if isinstance(v, dict) else v for k, v in d.items()})
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def get(self, key, default=None):
+        return self.__dict__.get(key, default)
+
+    def __iter__(self):
+        return iter(self.__dict__)
+
+    def __len__(self):
+        return len(self.__dict__)
 
 def get_config(name):
     if name not in EXPERIMENTS:
