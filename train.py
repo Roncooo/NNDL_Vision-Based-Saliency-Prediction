@@ -80,10 +80,7 @@ def main(config_name):
     print(f"Using device: {device}")
 
     # build everything from the config
-    train_dataset, val_dataset = create_dataloaders(config.dataset)
-    
-    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers)
-    val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
+    train_loader, val_loader, _ = create_dataloaders(config)
     
     model = build_model(config.model).to(device)
     criterion = build_loss(config.loss).to(device)
