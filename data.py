@@ -90,4 +90,53 @@ def create_dataloaders(cfg):
         pin_memory=True)
     
     return train_loader, val_loader, test_loader
+
+def create_mit_test_loader(cfg):
+    """DataLoader test on MIT1003"""
+    
+    mit_root = cfg["mit_data_root"]
+    IMAGE_DIR = os.path.join(mit_root, "ALLSTIMULI")
+    MAP_DIR = os.path.join(mit_root, "ALLFIXATIONMAPS")
+    
+    raw_images = sorted([f for f in os.listdir(IMAGE_DIR) if not f.startswith('.')])
+    all_maps = [f for f in os.listdir(MAP_DIR) if not f.startswith('.')]
+    
+    test_images = []
+    test_maps = []
+    
+    for img_name in raw_images:
+        base_name = os.path.splitext(img_name)[0]
+        
+        matching_maps = [m for m in all_maps if m.startswith(base_name) and "fixMap" in m]
+        
+        if matching_maps:
+            test_images.append(img_name)
+            test_maps.append(matching_maps[0])
+        else:
+            print(f"⚠️ Attenzione: Mappa 'fixMap' non trovata per l'immagine {img_name}")
+
+    assert len(test_images) == len(test_maps), "Errore critico: Le liste finali non combaciano!"
+    assert len(test_images) > 0, "Non è stata trovata nessuna corrispondenza! Controlla i nomi dei file."
+    
+    # 4. Creazione Dataset e DataLoader
+    test_transforms = PairedTransforms(target_size=(224, 224), is_train=False)
+    
+    mit_dataset = SaliencyDataset(
+        image_files=test_images, 
+        map_files=test_maps, 
+        image_dir=IMAGE_DIR, 
+        map_dir=MAP_DIR, 
+        transform=test_transforms
+    )
+    
+    mit_loader = DataLoader(
+        mit_dataset, 
+        batch_size=cfg["batch_size"], 
+        shuffle=False, 
+        num_workers=cfg["num_workers"], 
+        pin_memory=True
+    )
+    
+    return mit_loader
+
 print("\n--- Data Preparation Complete ---")
