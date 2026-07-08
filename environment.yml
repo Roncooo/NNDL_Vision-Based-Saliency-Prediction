@@ -10,7 +10,6 @@ dependencies:
   # Core
   - pytorch
   - torchvision
-  - torchaudio
   - pytorch-cuda=11.8
   
   # Data processing & Vision
@@ -30,8 +29,3 @@ dependencies:
   
   # Utilities
   - tqdm
-  - pyyaml
-  
-  # Pip fallbacks for things not easily found on conda-forge
-  - pip:
-    - wandb

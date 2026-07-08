@@ -5,8 +5,8 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from data import build_dataset # TODO
-from models import build_model # TODO
+from data import create_dataloaders
+from models import build_model
 from metrics import build_metrics
 from config import get_config
 from losses import build_loss
@@ -80,8 +80,7 @@ def main(config_name):
     print(f"Using device: {device}")
 
     # build everything from the config
-    train_dataset = build_dataset(config.dataset, split='train')
-    val_dataset = build_dataset(config.dataset, split='val')
+    train_dataset, val_dataset = create_dataloaders(config.dataset)
     
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers)
     val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)

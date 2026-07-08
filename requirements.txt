@@ -1,10 +1,26 @@
+# pip mirror of environment.yml. Conda is the primary path.
+
+# Core
 torch
 torchvision
+
+# Data processing & Vision
 numpy
 pandas
 pillow
+opencv-python
+
+# Metrics & Math (useful for KL, CC, NSS, AUC)
 scipy
 scikit-learn
+
+# Visualization & Notebooks
 matplotlib
+jupyter
+ipykernel
+
+# Utilities
 tqdm
+
+# Phase 3 (Optional)
 timm
