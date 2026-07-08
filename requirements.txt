@@ -1,4 +1,3 @@
-# pip mirror of environment.yml (spec §9). Conda is the primary path.
 torch
 torchvision
 numpy
@@ -8,4 +7,4 @@ scipy
 scikit-learn
 matplotlib
 tqdm
-timm            # optional: transformer (Swin) backbone, Phase 3
+timm
