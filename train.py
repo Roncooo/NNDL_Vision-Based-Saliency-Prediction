@@ -70,17 +70,23 @@ def validate(model, dataloader, criterion, metrics_dict, device):
     
     return results
 
-def main(config_name):
+def main(config_name, data_root=None, mit_data_root=None):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     # load configuration
     config = get_config(config_name)
     
+    # Override paths if provided
+    if data_root is not None:
+        config.data_root = data_root
+    if mit_data_root is not None:
+        config.mit_data_root = mit_data_root
+        
     # setup device
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # build everything from the config
-    train_loader, val_loader, _ = create_dataloaders(config)
+    train_loader, val_loader = create_dataloaders(config)
     
     model = build_model(config.model).to(device)
     criterion = build_loss(config.loss).to(device)
@@ -114,4 +120,11 @@ def main(config_name):
     return model, {"train_losses": train_losses, "val_losses": val_losses}
 
 if __name__ == "__main__":
-    main("baseline")
+    import argparse
+    parser = argparse.ArgumentParser(description="Train Saliency Prediction Model")
+    parser.add_argument("--config", type=str, default="baseline", help="Experiment config name")
+    parser.add_argument("--data-root", type=str, default=None, help="Path to SALICON dataset")
+    parser.add_argument("--mit-data-root", type=str, default=None, help="Path to MIT1003 dataset")
+    
+    args = parser.parse_args()
+    main(args.config, args.data_root, args.mit_data_root)
