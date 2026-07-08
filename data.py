@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from PIL import Image
 from custom_transforms import PairedTransforms
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader
 
 class SaliencyDataset(Dataset):
     def __init__(self, image_files, map_files, image_dir, map_dir, target_size=(256, 256), is_train=False, transform=None):
@@ -34,12 +34,11 @@ class SaliencyDataset(Dataset):
         except Exception as e:
             print(f"Errore caricamento {img_path}: {e}")
             raise e 
-            # return torch.zeros(3, 224, 224), torch.zeros(1, 224, 224) # 
 
 print("SaliencyDataset class defined.")
 
 def create_dataloaders(cfg):
-    """Crea e restituisce i DataLoader usando i path dal config."""
+    """DataLoader SALICON"""
     
     IMAGE_DIR = os.path.join(cfg["data_root"], "images")
     MAP_DIR = os.path.join(cfg["data_root"], "maps")
@@ -51,21 +50,14 @@ def create_dataloaders(cfg):
     
     train_images = sorted(os.listdir(IMAGE_TRAIN_PATH))
     train_maps = sorted(os.listdir(MAP_TRAIN_PATH))
-    val_images_full = sorted(os.listdir(IMAGE_VAL_PATH))
-    val_maps_full = sorted(os.listdir(MAP_VAL_PATH))
+    val_images = sorted(os.listdir(IMAGE_VAL_PATH))
+    val_maps = sorted(os.listdir(MAP_VAL_PATH))
     
     train_transforms = PairedTransforms(target_size=(256, 256), is_train=True)
     val_transforms = PairedTransforms(target_size=(256, 256), is_train=False)
     
     train_dataset = SaliencyDataset(train_images, train_maps, IMAGE_TRAIN_PATH, MAP_TRAIN_PATH, transform=train_transforms)
-    full_val_dataset = SaliencyDataset(val_images_full, val_maps_full, IMAGE_VAL_PATH, MAP_VAL_PATH, transform=val_transforms)    
-    
-    total_val_size = len(full_val_dataset)
-    test_size = total_val_size // 2
-    val_size = total_val_size - test_size
-
-    generator = torch.Generator().manual_seed(42)
-    val_dataset, test_dataset = random_split(full_val_dataset, [val_size, test_size], generator=generator)
+    val_dataset = SaliencyDataset(val_images, val_maps, IMAGE_VAL_PATH, MAP_VAL_PATH, transform=val_transforms)    
 
     train_loader = DataLoader(
         train_dataset, 
@@ -81,15 +73,8 @@ def create_dataloaders(cfg):
         num_workers=cfg["num_workers"], 
         pin_memory=True
     )
-
-    test_loader = DataLoader(
-        test_dataset, 
-        batch_size=cfg["batch_size"], 
-        shuffle=False, 
-        num_workers=cfg["num_workers"], 
-        pin_memory=True)
     
-    return train_loader, val_loader, test_loader
+    return train_loader, val_loader
 
 def create_mit_test_loader(cfg):
     """DataLoader test on MIT1003"""
@@ -113,13 +98,12 @@ def create_mit_test_loader(cfg):
             test_images.append(img_name)
             test_maps.append(matching_maps[0])
         else:
-            print(f"⚠️ Attenzione: Mappa 'fixMap' non trovata per l'immagine {img_name}")
+            print(f"'fixMap' not found for image{img_name}")
 
-    assert len(test_images) == len(test_maps), "Errore critico: Le liste finali non combaciano!"
-    assert len(test_images) > 0, "Non è stata trovata nessuna corrispondenza! Controlla i nomi dei file."
+    assert len(test_images) == len(test_maps), "Error: The number of test images and maps do not match."
+    assert len(test_images) > 0, "Error: No corresponding maps found! Check the file names."
     
-    # 4. Creazione Dataset e DataLoader
-    test_transforms = PairedTransforms(target_size=(224, 224), is_train=False)
+    test_transforms = PairedTransforms(target_size=(256, 256), is_train=False)
     
     mit_dataset = SaliencyDataset(
         image_files=test_images, 
