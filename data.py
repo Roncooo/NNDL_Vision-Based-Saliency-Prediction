@@ -1,18 +1,12 @@
-import torch
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms # For data augmentation and tensor conversion
-import torchvision.transforms.functional as TF # For applying same random transform
-from PIL import Image
 import os
+import torch
 import numpy as np
-import random # For random augmentations
+from PIL import Image
 from custom_transforms import PairedTransforms
-import matplotlib.pyplot as plt
-from config import get_config
-
+from torch.utils.data import Dataset, DataLoader, random_split
 
 class SaliencyDataset(Dataset):
-    def __init__(self, image_files, map_files, image_dir, map_dir, target_size=(224, 224), is_train=False, transform=None):
+    def __init__(self, image_files, map_files, image_dir, map_dir, target_size=(256, 256), is_train=False, transform=None):
         
         self.image_files = image_files
         self.map_files = map_files
@@ -28,12 +22,10 @@ class SaliencyDataset(Dataset):
         img_path = os.path.join(self.image_dir, self.image_files[idx])
         map_path = os.path.join(self.map_dir, self.map_files[idx])
 
-        # Apri i file dal disco grezzi
         try:
             image = Image.open(img_path).convert('RGB')
             gt_map = Image.open(map_path).convert('L')
             
-            # Delega TUTTO il lavoro di modifica all'oggetto esterno
             if self.transform is not None:
                 image, gt_map = self.transform(image, gt_map)
                 
@@ -59,17 +51,22 @@ def create_dataloaders(cfg):
     
     train_images = sorted(os.listdir(IMAGE_TRAIN_PATH))
     train_maps = sorted(os.listdir(MAP_TRAIN_PATH))
-    val_images = sorted(os.listdir(IMAGE_VAL_PATH))
-    val_maps = sorted(os.listdir(MAP_VAL_PATH))
+    val_images_full = sorted(os.listdir(IMAGE_VAL_PATH))
+    val_maps_full = sorted(os.listdir(MAP_VAL_PATH))
     
     train_transforms = PairedTransforms(target_size=(256, 256), is_train=True)
     val_transforms = PairedTransforms(target_size=(256, 256), is_train=False)
     
-    # Crea i Dataset
     train_dataset = SaliencyDataset(train_images, train_maps, IMAGE_TRAIN_PATH, MAP_TRAIN_PATH, transform=train_transforms)
-    val_dataset = SaliencyDataset(val_images, val_maps, IMAGE_VAL_PATH, MAP_VAL_PATH, transform=val_transforms)
+    full_val_dataset = SaliencyDataset(val_images_full, val_maps_full, IMAGE_VAL_PATH, MAP_VAL_PATH, transform=val_transforms)    
     
-    # Crea i DataLoader
+    total_val_size = len(full_val_dataset)
+    test_size = total_val_size // 2
+    val_size = total_val_size - test_size
+
+    generator = torch.Generator().manual_seed(42)
+    val_dataset, test_dataset = random_split(full_val_dataset, [val_size, test_size], generator=generator)
+
     train_loader = DataLoader(
         train_dataset, 
         batch_size=cfg["batch_size"], 
@@ -84,29 +81,13 @@ def create_dataloaders(cfg):
         num_workers=cfg["num_workers"], 
         pin_memory=True
     )
-    
-    return train_loader, val_loader
 
-# debug
-'''
+    test_loader = DataLoader(
+        test_dataset, 
+        batch_size=cfg["batch_size"], 
+        shuffle=False, 
+        num_workers=cfg["num_workers"], 
+        pin_memory=True)
+    
+    return train_loader, val_loader, test_loader
 print("\n--- Data Preparation Complete ---")
-
-if __name__ == "__main__":
-    print("\n--- TEST FINALE DATALOADER ---")
-    
-    # Invece di chiamare ConfigNode() vuoto, chiediamo la configurazione "baseline"
-    cfg = get_config("baseline") 
-    
-    try:
-        train_loader, val_loader = create_dataloaders(cfg)
-        
-        # Estrai un BATCH intero
-        images, maps = next(iter(train_loader))
-        
-        print(f"Batch Immagini: {images.shape} | Tipo: {images.dtype}")
-        print(f"Batch Mappe:    {maps.shape} | Tipo: {maps.dtype}")
-        print("TUTTO FUNZIONA PERFETTAMENTE! ")
-        
-    except Exception as e:
-        print(f"Errore durante il test del DataLoader: {e}")
-'''
