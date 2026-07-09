@@ -13,7 +13,7 @@ EXPERIMENTS = {
         "mit_data_root": "./MIT1003/",
         "batch_size": 32,
         "num_epochs": 10,
-        "num_workers": 4
+        "num_workers": 16
     }
 }
 
