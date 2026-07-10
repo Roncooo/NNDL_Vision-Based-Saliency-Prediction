@@ -6,6 +6,7 @@ map (B,1,H,W) with values in [0,1]. New architectures are added with
 @register_model and selected by name in config.py  train.py never changes.
 """
 
+import torch
 import torch.nn as nn
 from torchvision import models as tvm
 
@@ -33,7 +34,7 @@ def _up_block(in_ch, out_ch):
 
 
 class BaselineCNN(nn.Module):
-    """Plain CNN encoder–decoder: the stage-1 baseline of the project plan.
+    """Plain CNN encoder decoder: the stage-1 baseline of the project plan.
 
     Encoder  VGG16 conv layers, pretrained on ImageNet, as in Wang & Shen
     (Deep Visual Attention Prediction, TIP 2018), who build their attention
@@ -77,6 +78,118 @@ class BaselineCNN(nn.Module):
 @register_model("BaselineCNN")
 def build_baseline_cnn(config):
     return BaselineCNN(pretrained=getattr(config, "pretrained", True))
+
+
+class VGGMultiScaleEncoder(nn.Module):
+    """Shared VGG16 trunk tapped at three depths (Wang & Shen, TIP 2018).
+
+    The paper selects M=3 feature maps from conv3_3, conv4_3 and conv5_3
+    ("considering further more layers does not contribute to performance
+    improvement, but brings extra computation burden") and learns all scales
+    "within a single network", i.e. one shared trunk instead of three
+    separate encoders. Slicing torchvision's vgg16.features:
+      [:16]   conv1_1 .. conv3_3+ReLU -> (B,256,H/4, W/4)
+      [16:23] pool3  .. conv4_3+ReLU -> (B,512,H/8, W/8)
+      [23:30] pool4  .. conv5_3+ReLU -> (B,512,H/16,W/16)  (pool5 dropped, as in BaselineCNN)
+    Pretrained on ImageNet and fine-tuned end-to-end, same transfer-learning
+    argument as the baseline.
+    """
+
+    def __init__(self, pretrained=True):
+        super().__init__()
+        weights = tvm.VGG16_Weights.IMAGENET1K_V1 if pretrained else None
+        features = tvm.vgg16(weights=weights).features
+        self.stage3 = features[:16]
+        self.stage4 = features[16:23]
+        self.stage5 = features[23:30]
+
+    def forward(self, x):
+        f3 = self.stage3(x)
+        f4 = self.stage4(f3)
+        f5 = self.stage5(f4)
+        return f3, f4, f5
+
+
+class DecoderBranch(nn.Module):
+    """Per-scale decoder: deconv blocks up to full resolution -> 1-channel logits.
+
+    Mirrors the paper's per-stream decoders: 2/3/4 deconvolution layers for
+    the conv3_3/conv4_3/conv5_3 streams, "each deconvolution layer doubles
+    the spatial size" -- trainable upsampling, "more favored than ... a fixed
+    bilinear interpolation kernel". `channels` is the full schedule, e.g.
+    [512,256,128,64,32] = 4 up-blocks. No sigmoid here: branches emit logits
+    and a single sigmoid is applied once, after fusion.
+    """
+
+    def __init__(self, channels):
+        super().__init__()
+        self.up = nn.Sequential(
+            *[_up_block(c_in, c_out) for c_in, c_out in zip(channels[:-1], channels[1:])]
+        )
+        self.head = nn.Conv2d(channels[-1], 1, kernel_size=1)
+
+    def forward(self, x):
+        return self.head(self.up(x))
+
+
+class FusionModule(nn.Module):
+    """Wang & Shen's "attention fusion" layer.
+
+    A 1x1 convolution over the stacked per-scale maps "simultaneously learns
+    the fusion weight during training" (F = sum_m w_m * S_m); one sigmoid
+    then maps the fused result into [0,1]. Same pattern as HED's side-output
+    fusion (Xie & Tu, ICCV 2015), including the initialization to a uniform
+    average of the streams so training starts from a sensible fusion.
+    """
+
+    def __init__(self, num_maps):
+        super().__init__()
+        self.fuse = nn.Conv2d(num_maps, 1, kernel_size=1)
+        nn.init.constant_(self.fuse.weight, 1.0 / num_maps)
+        nn.init.zeros_(self.fuse.bias)
+
+    def forward(self, maps):
+        return torch.sigmoid(self.fuse(torch.cat(maps, dim=1)))
+
+
+class MultiScaleCNN(nn.Module):
+    """Multi-scale saliency network: stage-2 model of the project plan
+    (Wang & Shen, "Deep Visual Attention Prediction", IEEE TIP 2018).
+
+    Saliency is driven both by low-level contrast (Itti et al., PAMI 1998)
+    and by high-level content such as faces/people (Judd et al., ICCV 2009),
+    which live at different depths of a CNN. So instead of decoding only the
+    deepest feature map (BaselineCNN), three per-scale decoders each predict
+    a saliency map from conv3_3 / conv4_3 / conv5_3 (fine/local to coarse/
+    semantic) and a learned 1x1-conv fusion merges them. Combining shallow
+    and deep layers is the classic dense-prediction recipe (FCN, Long et al.
+    CVPR 2015; Hypercolumns, Hariharan et al. CVPR 2015).
+
+    The dec5 branch is identical to the baseline decoder, so any metric gain
+    is attributable to the extra scales + fusion, not to a different decoder.
+    Deviation from the paper: no deep supervision (per-stream losses would
+    break the one-output/one-loss training contract); only the fused map is
+    supervised.
+
+    Input constraint as baseline: H and W must be multiples of 16.
+    """
+
+    def __init__(self, pretrained=True):
+        super().__init__()
+        self.encoder = VGGMultiScaleEncoder(pretrained=pretrained)
+        self.dec3 = DecoderBranch([256, 64, 32])            # H/4  -> H (2 up-blocks)
+        self.dec4 = DecoderBranch([512, 128, 64, 32])       # H/8  -> H (3 up-blocks)
+        self.dec5 = DecoderBranch([512, 256, 128, 64, 32])  # H/16 -> H (4, = baseline decoder)
+        self.fusion = FusionModule(num_maps=3)
+
+    def forward(self, x):
+        f3, f4, f5 = self.encoder(x)
+        return self.fusion([self.dec3(f3), self.dec4(f4), self.dec5(f5)])
+
+
+@register_model("MultiScaleCNN")
+def build_multiscale_cnn(config):
+    return MultiScaleCNN(pretrained=getattr(config, "pretrained", True))
 
 
 def build_model(config):
