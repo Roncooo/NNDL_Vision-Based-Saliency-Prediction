@@ -14,6 +14,22 @@ EXPERIMENTS = {
         "batch_size": 32,
         "num_epochs": 10,
         "num_workers": 16
+    },
+    "multiscale": {
+        "dataset": {"name": "SALICON"},
+        "model": {"name": "MultiScaleCNN"},
+        "loss": {"name": "MSE"},
+        "metrics": {"PCC": {}, "JSS": {}, "MSE": {}},
+        "optimizer": {
+            "name": "Adam",
+            "lr": 1e-4,
+            "weight_decay": 1e-5
+        },
+        "data_root": "./SALICON/",
+        "mit_data_root": "./MIT1003/",
+        "batch_size": 32,
+        "num_epochs": 10,
+        "num_workers": 16
     }
 }
 
