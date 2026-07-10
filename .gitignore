@@ -49,3 +49,6 @@ PROJECT_SPEC.md
 PROJECT_SPEC.md:Zone.Identifier
 
 note.txt
+
+# Model prediction outputs (regenerable via test.ipynb)
+output/
