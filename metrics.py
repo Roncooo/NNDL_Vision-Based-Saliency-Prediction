@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from functional import pcc, jsd
+from functional import pcc, jsd, nss, auc_judd
 
 METRIC_REGISTRY = {}
 
@@ -32,6 +32,22 @@ def build_jss_metric(config):
     def jss_metric(pred, gt):
         return (1.0 - jsd(pred, gt)).item()
     return jss_metric
+
+# Normalized Scanpath Saliency
+@register_metric("NSS")
+def build_nss_metric(config):
+    def nss_metric(pred, gt):
+        nss_val = nss(pred, gt)
+        return torch.mean(nss_val).item()
+    return nss_metric
+
+# AUC-Judd
+@register_metric("AUC_Judd")
+def build_auc_judd_metric(config):
+    def auc_judd_metric(pred, gt):
+        auc_val = auc_judd(pred, gt)
+        return torch.mean(auc_val).item()
+    return auc_judd_metric
 
 def build_metrics(config):
     """Factory function called by train.py"""
