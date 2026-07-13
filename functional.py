@@ -9,6 +9,17 @@ tracked by autograd, allowing them to be used directly as loss functions.
 import torch
 import torch.nn.functional as F
 
+def kl(pred, gt):
+    """Computes the Kullback-Leibler Divergence."""
+    p = pred / (torch.sum(pred, dim=[-1, -2], keepdim=True) + 1e-7)
+    q = gt / (torch.sum(gt, dim=[-1, -2], keepdim=True) + 1e-7)
+    
+    log_p = torch.log(p + 1e-7)
+    
+    # F.kl_div expects the input (prediction) to be log-probabilities
+    # and the target (ground truth) to be probabilities.
+    return F.kl_div(log_p, q, reduction='batchmean')
+
 def pcc(pred, gt):
     """Computes the Pearson Correlation Coefficient."""
     pred_mean = pred - torch.mean(pred, dim=[1, 2, 3], keepdim=True)

@@ -2,7 +2,7 @@ EXPERIMENTS = {
     "baseline": {
         "dataset": {"name": "SALICON"},
         "model": {"name": "BaselineCNN"},
-        "loss": {"name": "MSE"},
+        "loss": {"name": "combined", "alpha": 0.5},
         "metrics": {"PCC": {}, "JSS": {}, "MSE": {}}, # as a dictionary to allow parameters
         "optimizer": {
             "name": "Adam",
@@ -18,7 +18,7 @@ EXPERIMENTS = {
     "multiscale": {
         "dataset": {"name": "SALICON"},
         "model": {"name": "MultiScaleCNN"},
-        "loss": {"name": "MSE"},
+        "loss": {"name": "combined", "alpha": 0.5},
         "metrics": {"PCC": {}, "JSS": {}, "MSE": {}},
         "optimizer": {
             "name": "Adam",
