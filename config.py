@@ -8,8 +8,8 @@ BASE_CONFIG = {
         "lr": 1e-4,
         "weight_decay": 1e-5
     },
-    "data_root": "./SALICON/",
-    "mit_data_root": "./MIT1003/",
+    "data_root": "./data/SALICON/",
+    "mit_data_root": "./data/MIT1003/",
     "batch_size": 32,
     "num_epochs": 10,
     "num_workers": 16
