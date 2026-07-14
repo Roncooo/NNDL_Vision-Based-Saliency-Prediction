@@ -1,4 +1,5 @@
 import os
+import random
 import torch
 import numpy as np
 from PIL import Image
@@ -6,7 +7,7 @@ from custom_transforms import PairedTransforms
 from torch.utils.data import Dataset, DataLoader
 
 class SaliencyDataset(Dataset):
-    def __init__(self, image_files, map_files, image_dir, map_dir, target_size=(256, 256), is_train=False, transform=None):
+    def __init__(self, image_files, map_files, image_dir, map_dir, transform=None):
         
         self.image_files = image_files
         self.map_files = map_files
@@ -32,10 +33,23 @@ class SaliencyDataset(Dataset):
             return image, gt_map
         
         except Exception as e:
-            print(f"Errore caricamento {img_path}: {e}")
+            print(f"Error loading{img_path}: {e}")
             raise e 
 
 print("SaliencyDataset class defined.")
+
+def _match_pairs(image_dir, map_dir):
+    images = sorted(os.listdir(image_dir))
+    maps = sorted(os.listdir(map_dir))
+    img_bases = [os.path.splitext(f)[0] for f in images]
+    map_bases = [os.path.splitext(f)[0] for f in maps]
+    assert img_bases == map_bases, "Image/map filename mismatch — check for missing files."
+    return images, maps
+
+def worker_init_fn(worker_id):
+    seed = torch.initial_seed() % 2**32
+    random.seed(seed + worker_id)
+    np.random.seed(seed + worker_id)
 
 def create_dataloaders(cfg):
     """DataLoader SALICON"""
@@ -48,32 +62,38 @@ def create_dataloaders(cfg):
     IMAGE_VAL_PATH = os.path.join(IMAGE_DIR, "val")
     MAP_VAL_PATH = os.path.join(MAP_DIR, "val")
     
-    train_images = sorted(os.listdir(IMAGE_TRAIN_PATH))
-    train_maps = sorted(os.listdir(MAP_TRAIN_PATH))
-    val_images = sorted(os.listdir(IMAGE_VAL_PATH))
-    val_maps = sorted(os.listdir(MAP_VAL_PATH))
-    
-    train_transforms = PairedTransforms(target_size=(256, 256), is_train=True)
+    train_images, train_maps = _match_pairs(IMAGE_TRAIN_PATH, MAP_TRAIN_PATH)
+    val_images, val_maps = _match_pairs(IMAGE_VAL_PATH, MAP_VAL_PATH)
+
+    train_transforms = PairedTransforms(target_size=(256, 256), is_train=True) 
     val_transforms = PairedTransforms(target_size=(256, 256), is_train=False)
+
+    train_dataset = SaliencyDataset(
+        train_images, train_maps, IMAGE_TRAIN_PATH, MAP_TRAIN_PATH, transform=train_transforms
+    )
     
-    train_dataset = SaliencyDataset(train_images, train_maps, IMAGE_TRAIN_PATH, MAP_TRAIN_PATH, transform=train_transforms)
-    val_dataset = SaliencyDataset(val_images, val_maps, IMAGE_VAL_PATH, MAP_VAL_PATH, transform=val_transforms)    
+    val_dataset = SaliencyDataset(
+        val_images, val_maps, IMAGE_VAL_PATH, MAP_VAL_PATH, transform=val_transforms
+    )
 
     train_loader = DataLoader(
-        train_dataset, 
-        batch_size=cfg["batch_size"], 
-        shuffle=True, 
-        num_workers=cfg["num_workers"], 
-        pin_memory=True
-    )
-    val_loader = DataLoader(
-        val_dataset, 
-        batch_size=cfg["batch_size"], 
-        shuffle=False, 
-        num_workers=cfg["num_workers"], 
-        pin_memory=True
+        train_dataset,
+        batch_size=cfg["batch_size"],
+        shuffle=True,
+        num_workers=cfg["num_workers"],
+        pin_memory=True,
+        worker_init_fn=worker_init_fn
     )
     
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=cfg["batch_size"],
+        shuffle=False,
+        num_workers=cfg["num_workers"],
+        pin_memory=True,
+        worker_init_fn=worker_init_fn
+    )
+
     return train_loader, val_loader
 
 def create_mit_test_loader(cfg):
@@ -89,16 +109,19 @@ def create_mit_test_loader(cfg):
     test_images = []
     test_maps = []
     
+    map_lookup = {}
+    for m in all_maps:
+        if "fixMap" in m:
+            key = m.split("_fixMap")[0]
+            map_lookup[key] = m
+
     for img_name in raw_images:
         base_name = os.path.splitext(img_name)[0]
-        
-        matching_maps = [m for m in all_maps if m.startswith(base_name) and "fixMap" in m]
-        
-        if matching_maps:
+        if base_name in map_lookup:
             test_images.append(img_name)
-            test_maps.append(matching_maps[0])
+            test_maps.append(map_lookup[base_name])
         else:
-            print(f"'fixMap' not found for image{img_name}")
+            print(f"'fixMap' not found for image {img_name}")
 
     assert len(test_images) == len(test_maps), "Error: The number of test images and maps do not match."
     assert len(test_images) > 0, "Error: No corresponding maps found! Check the file names."
@@ -118,7 +141,8 @@ def create_mit_test_loader(cfg):
         batch_size=cfg["batch_size"], 
         shuffle=False, 
         num_workers=cfg["num_workers"], 
-        pin_memory=True
+        pin_memory=True,
+        worker_init_fn=worker_init_fn
     )
     
     return mit_loader
