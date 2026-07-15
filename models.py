@@ -132,6 +132,52 @@ class DecoderBranch(nn.Module):
         return self.head(self.up(x))
 
 
+class SkipDecoderBranch(nn.Module):
+    """Per-scale decoder WITH U-Net skip connections -> 1-channel logits.
+
+    Same role as DecoderBranch (upsample one encoder tap back to full
+    resolution), but after an up-block reaches a resolution where an encoder
+    tap exists, that tap is concatenated onto the feature map before the next
+    up-block. This is the classic U-Net skip (Ronneberger et al., MICCAI
+    2015): pooling in the encoder discards fine spatial detail that a deep
+    feature map can no longer recover on its own, so the higher-resolution
+    encoder activations are fed straight into the decoder to sharpen
+    localization. It is a strict addition on top of stage-2's multi-scale
+    fusion: the fusion combines *whole* per-scale predictions, whereas these
+    skips reinject encoder detail *inside* a single branch's upsampling path.
+
+    Interface (kept explicit on purpose so the wiring is auditable):
+      out_chs : output channels of each up-block, e.g. [256,128,64,32].
+                Deliberately identical to the matching DecoderBranch so the
+                ONLY new variable vs. MultiScaleCNN is the concatenated skips.
+      skip_chs: channels concatenated AFTER each up-block (same length as
+                out_chs); 0 where the reached resolution has no encoder tap.
+    forward(x, skips): `skips` is a list aligned to the up-blocks, holding the
+    encoder tensor to concatenate after each up-block, or None where skip_ch
+    is 0. Concatenation only ever happens at matching resolution (guaranteed
+    by how MultiScaleSkipCNN wires the taps).
+    """
+
+    def __init__(self, in_ch, out_chs, skip_chs):
+        super().__init__()
+        assert len(out_chs) == len(skip_chs), "one skip slot per up-block"
+        self.ups = nn.ModuleList()
+        c = in_ch
+        for out_ch, skip_ch in zip(out_chs, skip_chs):
+            self.ups.append(_up_block(c, out_ch))   # x2 upsample to out_ch
+            c = out_ch + skip_ch                    # next block sees the concat
+        self.head = nn.Conv2d(c, 1, kernel_size=1)  # c = last out (+ last skip, =0 here)
+
+    def forward(self, x, skips):
+        assert len(skips) == len(self.ups), "one skip (or None) per up-block"
+        for up, skip in zip(self.ups, skips):
+            x = up(x)
+            if skip is not None:
+                # resolutions are matched by construction (see MultiScaleSkipCNN)
+                x = torch.cat([x, skip], dim=1)
+        return self.head(x)
+
+
 class FusionModule(nn.Module):
     """Wang & Shen's "attention fusion" layer.
 
@@ -190,6 +236,52 @@ class MultiScaleCNN(nn.Module):
 @register_model("MultiScaleCNN")
 def build_multiscale_cnn(config):
     return MultiScaleCNN(pretrained=getattr(config, "pretrained", True))
+
+
+class MultiScaleSkipCNN(nn.Module):
+    """Multi-scale + skip-connection saliency network: stage-3 of the plan.
+
+    Identical to MultiScaleCNN (same shared VGG encoder, same three taps,
+    same fusion layer) EXCEPT the three decoder branches are replaced by
+    SkipDecoderBranch, so each branch concatenates the higher-resolution
+    encoder taps into its upsampling path (U-Net skips, Ronneberger et al.
+    MICCAI 2015). Encoder and fusion are unchanged, so this is a clean
+    ablation isolating the effect of adding skip connections on top of the
+    stage-2 multi-scale model.
+
+    Which taps skip into which branch (only ever at matching resolution,
+    with tap resolutions f3@H/4, f4@H/8, f5@H/16):
+      dec5 (from f5@H/16): ->H/8 concat f4, ->H/4 concat f3, ->H/2, ->H
+      dec4 (from f4@H/8):  ->H/4 concat f3, ->H/2, ->H
+      dec3 (from f3@H/4):  ->H/2, ->H            (no shallower tap -> no skips)
+    Up-block output channels match MultiScaleCNN's branches exactly; only the
+    *input* channels grow where a skip is concatenated (that extra capacity
+    is the point of the stage, and its param cost is reported in the notes).
+
+    Input constraint as before: H and W must be multiples of 16.
+    """
+
+    def __init__(self, pretrained=True):
+        super().__init__()
+        self.encoder = VGGMultiScaleEncoder(pretrained=pretrained)
+        # out_chs mirror MultiScaleCNN; skip_chs = encoder tap channels
+        # concatenated after the up-block that reaches the tap's resolution.
+        self.dec3 = SkipDecoderBranch(256, [64, 32],           [0, 0])            # no skips
+        self.dec4 = SkipDecoderBranch(512, [128, 64, 32],      [256, 0, 0])       # +f3 @ H/4
+        self.dec5 = SkipDecoderBranch(512, [256, 128, 64, 32], [512, 256, 0, 0])  # +f4 @ H/8, +f3 @ H/4
+        self.fusion = FusionModule(num_maps=3)
+
+    def forward(self, x):
+        f3, f4, f5 = self.encoder(x)
+        s3 = self.dec3(f3, [None, None])
+        s4 = self.dec4(f4, [f3, None, None])
+        s5 = self.dec5(f5, [f4, f3, None, None])
+        return self.fusion([s3, s4, s5])
+
+
+@register_model("MultiScaleSkipCNN")
+def build_multiscale_skip_cnn(config):
+    return MultiScaleSkipCNN(pretrained=getattr(config, "pretrained", True))
 
 
 def build_model(config):
