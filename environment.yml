@@ -29,3 +29,6 @@ dependencies:
   
   # Utilities
   - tqdm
+  - pip
+  - pip:
+    - gdown

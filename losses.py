@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from functional import pcc, jsd
+from functional import pcc, jsd, kl
 
 LOSS_REGISTRY = {}
 
@@ -39,6 +39,22 @@ class JSSLoss(nn.Module):
 @register_loss("JSS")
 def build_jss_loss(config):
     return JSSLoss()
+
+class CombinedLoss(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        # Retrieve alpha from config, default to 0.5 if not provided
+        self.alpha = config.get("alpha", 0.5)
+
+    def forward(self, pred, gt):
+        kl_val = kl(pred, gt)
+        pcc_val = torch.mean(pcc(pred, gt))
+        return kl_val - self.alpha * pcc_val
+
+# Combined Loss: KL - alpha * PCC
+@register_loss("combined")
+def build_combined_loss(config):
+    return CombinedLoss(config)
 
 def build_loss(config):
     """Factory function called by train.py"""

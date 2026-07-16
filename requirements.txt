@@ -21,6 +21,7 @@ ipykernel
 
 # Utilities
 tqdm
+gdown
 
 # Phase 3 (Optional)
 timm
