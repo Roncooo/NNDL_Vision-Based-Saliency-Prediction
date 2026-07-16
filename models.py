@@ -284,6 +284,101 @@ def build_multiscale_skip_cnn(config):
     return MultiScaleSkipCNN(pretrained=getattr(config, "pretrained", True))
 
 
+class SwinMultiScaleEncoder(nn.Module):
+    """Hierarchical Swin-T trunk tapped at all 4 stages (Liu et al., ICCV 2021).
+
+    Swin-T's patch embed downsamples x4, then 3 more PatchMerging steps (x2
+    each) give 4 natural stages at H/4 (96ch), H/8 (192ch), H/16 (384ch) and
+    H/32 (768ch) -- torchvision's `features` Sequential exposes these at
+    indices [1],[3],[5],[7] (the even indices in between are the
+    PatchMerging downsamplers). Unlike VGG, there is no single layer to drop
+    for extra resolution (downsampling is uniform, not a separate pool5), so
+    H/32 is simply the deepest scale available, one level deeper than any
+    CNN model in this project used.
+
+    IMPORTANT: torchvision's SwinTransformer operates channel-last (NHWC)
+    throughout -- attention and LayerNorm need it -- so every tap comes out
+    shaped (B,H,W,C), confirmed by direct inspection. Our decoder is built on
+    Conv2d/ConvTranspose2d (NCHW), so each tap is permuted back to (B,C,H,W)
+    here, once, so every other module downstream never has to know Swin is
+    channel-last internally.
+    """
+
+    def __init__(self, pretrained=True):
+        super().__init__()
+        weights = tvm.Swin_T_Weights.IMAGENET1K_V1 if pretrained else None
+        features = tvm.swin_t(weights=weights).features
+        self.stage1 = features[0:2]   # patch embed + 2 blocks -> (B,H/4,W/4,96)  NHWC
+        self.stage2 = features[2:4]   # merge + 2 blocks       -> (B,H/8,W/8,192) NHWC
+        self.stage3 = features[4:6]   # merge + 6 blocks       -> (B,H/16,W/16,384) NHWC
+        self.stage4 = features[6:8]   # merge + 2 blocks       -> (B,H/32,W/32,768) NHWC
+
+    def forward(self, x):
+        f1 = self.stage1(x)
+        f2 = self.stage2(f1)
+        f3 = self.stage3(f2)
+        f4 = self.stage4(f3)
+        # NHWC -> NCHW so DecoderBranch's Conv2d/ConvTranspose2d layers apply
+        return (f1.permute(0, 3, 1, 2), f2.permute(0, 3, 1, 2),
+                f3.permute(0, 3, 1, 2), f4.permute(0, 3, 1, 2))
+
+
+class TransformerSaliency(nn.Module):
+    """Transformer-encoder saliency network: stage-4 (final) model of the plan.
+
+    Replaces the CNN backbone with Swin-T (Liu et al., "Swin Transformer:
+    Hierarchical Vision Transformer using Shifted Windows", ICCV 2021) while
+    reusing the exact multi-scale decode-and-fuse recipe of MultiScaleCNN --
+    the whole point of this project's modular split is that a new backbone
+    is an addition, not a rewrite. Motivation for trying a transformer here
+    specifically: CNNs have limited long-range context (a fixed, local
+    receptive field per layer), which TranSalNet (Lou et al., Neurocomputing
+    2022) identifies as a real limitation for saliency prediction, since
+    scene-level gist and competition between distant salient regions both
+    require long-range reasoning that self-attention provides directly.
+
+    Uses all 4 of Swin-T's hierarchical stages (not capped at 3, unlike the
+    VGG models): Wang & Shen's finding that M=3 suffices doesn't transfer
+    here, because their 2 dropped VGG blocks are redundant shallow layers,
+    whereas Swin's stage-4 (H/32, 768ch) is a semantic scale that never
+    existed in the VGG encoder at all -- dropping it would discard exactly
+    the long-range context motivating the switch. FusionModule already takes
+    num_maps as an argument, so fusing 4 streams instead of 3 costs no new
+    code there. dec4 (the new, deepest branch) needs 5 up-blocks (H/32->H)
+    where the VGG models' deepest branch only needed 4 (H/16->H); every
+    branch still ends at 32ch into the same shared Conv2d(32,1,1) head.
+
+    Deliberately NOT combined with skip connections (MultiScaleSkipCNN):
+    that stage did not help (see note.txt), and combining two independent
+    variables (backbone + skips) here would confound the CNN-vs-Transformer
+    comparison this model exists to make. Same carried-over decisions as
+    every previous model: no deep supervision, single sigmoid after fusion,
+    MSE loss, identical training hyperparameters (Adam lr 1e-4, wd 1e-5) --
+    the backbone is the only variable in this ablation.
+
+    Input constraint: H and W must be multiples of 32 (one more PatchMerging
+    stage than the VGG models' /16 requirement).
+    """
+
+    def __init__(self, pretrained=True):
+        super().__init__()
+        self.encoder = SwinMultiScaleEncoder(pretrained=pretrained)
+        self.dec1 = DecoderBranch([96, 64, 32])                        # H/4  -> H (2 up-blocks)
+        self.dec2 = DecoderBranch([192, 128, 64, 32])                  # H/8  -> H (3 up-blocks)
+        self.dec3 = DecoderBranch([384, 256, 128, 64, 32])             # H/16 -> H (4 up-blocks)
+        self.dec4 = DecoderBranch([768, 512, 256, 128, 64, 32])        # H/32 -> H (5 up-blocks, new depth)
+        self.fusion = FusionModule(num_maps=4)
+
+    def forward(self, x):
+        f1, f2, f3, f4 = self.encoder(x)
+        return self.fusion([self.dec1(f1), self.dec2(f2), self.dec3(f3), self.dec4(f4)])
+
+
+@register_model("TransformerSaliency")
+def build_transformer_saliency(config):
+    return TransformerSaliency(pretrained=getattr(config, "pretrained", True))
+
+
 def build_model(config):
     """Factory function called by train.py"""
     name = config.name
