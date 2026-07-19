@@ -1,0 +1,48 @@
+{
+  "train_losses": [
+    0.0061,
+    0.0057,
+    0.0054,
+    0.0051
+  ],
+  "val_losses": [
+    {
+      "val_loss": 0.0092,
+      "PCC": 0.8651,
+      "JSS": 0.9177,
+      "MSE": 0.0092,
+      "NSS": 0.531,
+      "AUC_Judd": 0.9397
+    },
+    {
+      "val_loss": 0.0089,
+      "PCC": 0.8648,
+      "JSS": 0.9268,
+      "MSE": 0.0089,
+      "NSS": 0.5501,
+      "AUC_Judd": 0.9398
+    },
+    {
+      "val_loss": 0.01,
+      "PCC": 0.8583,
+      "JSS": 0.9255,
+      "MSE": 0.01,
+      "NSS": 0.5088,
+      "AUC_Judd": 0.9376
+    },
+    {
+      "val_loss": 0.0092,
+      "PCC": 0.8621,
+      "JSS": 0.9298,
+      "MSE": 0.0092,
+      "NSS": 0.5418,
+      "AUC_Judd": 0.9418
+    }
+  ],
+  "config_name": "multiscale",
+  "start_epoch": 10,
+  "resumed_from": "checkpoints/best_model_multiscale_20260710_143726.pth",
+  "best_val_loss": 0.0089,
+  "early_stopped": true,
+  "_note": "parsed from /tmp/multiscale_continue.log (run predates history saving)"
+}

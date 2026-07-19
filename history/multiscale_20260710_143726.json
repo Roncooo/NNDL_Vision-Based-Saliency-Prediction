@@ -1,0 +1,82 @@
+{
+  "train_losses": [
+    0.0704,
+    0.0306,
+    0.0183,
+    0.0131,
+    0.0106,
+    0.0092,
+    0.0083,
+    0.0076,
+    0.0071,
+    0.0067
+  ],
+  "val_losses": [
+    {
+      "val_loss": 0.0409,
+      "PCC": 0.8082,
+      "JSS": 0.7743,
+      "MSE": 0.0409
+    },
+    {
+      "val_loss": 0.0229,
+      "PCC": 0.8404,
+      "JSS": 0.7999,
+      "MSE": 0.0229
+    },
+    {
+      "val_loss": 0.0151,
+      "PCC": 0.8409,
+      "JSS": 0.8221,
+      "MSE": 0.0151
+    },
+    {
+      "val_loss": 0.0128,
+      "PCC": 0.8476,
+      "JSS": 0.8371,
+      "MSE": 0.0128
+    },
+    {
+      "val_loss": 0.0111,
+      "PCC": 0.857,
+      "JSS": 0.8576,
+      "MSE": 0.0111
+    },
+    {
+      "val_loss": 0.0101,
+      "PCC": 0.8593,
+      "JSS": 0.8767,
+      "MSE": 0.0101
+    },
+    {
+      "val_loss": 0.0098,
+      "PCC": 0.8567,
+      "JSS": 0.8809,
+      "MSE": 0.0098
+    },
+    {
+      "val_loss": 0.0095,
+      "PCC": 0.8631,
+      "JSS": 0.8918,
+      "MSE": 0.0095
+    },
+    {
+      "val_loss": 0.0093,
+      "PCC": 0.865,
+      "JSS": 0.8978,
+      "MSE": 0.0093
+    },
+    {
+      "val_loss": 0.0091,
+      "PCC": 0.8644,
+      "JSS": 0.9042,
+      "MSE": 0.0091
+    }
+  ],
+  "config_name": "multiscale",
+  "start_epoch": 0,
+  "resumed_from": null,
+  "best_val_loss": 0.0091,
+  "early_stopped": false,
+  "_note": "reconstructed from note.txt 8b - original run predates history saving"
+}
