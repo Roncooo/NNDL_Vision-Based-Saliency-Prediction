@@ -13,7 +13,8 @@ BASE_CONFIG = {
     "mit_data_root": "./data/MIT1003/",
     "batch_size": 32,
     "num_epochs": 10,
-    "num_workers": 16
+    "num_workers": 16,
+    "early_stopping": {"enabled": True, "patience": 2, "min_delta": 0.0, "monitor": "val_loss"},
 }
 
 EXPERIMENTS = {
