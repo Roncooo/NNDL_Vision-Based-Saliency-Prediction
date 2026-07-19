@@ -33,6 +33,22 @@ EXPERIMENTS = {
     "baseline_combined": {
         "model": {"name": "BaselineCNN"},
         "loss": {"name": "combined", "alpha": 0.5},
+        "num_epochs": 20,
+    },
+    "multiscale_combined": {
+        "model": {"name": "MultiScaleCNN"},
+        "loss": {"name": "combined", "alpha": 0.5},
+        "num_epochs": 20,
+    },
+    "multiscale_skip_combined": {
+        "model": {"name": "MultiScaleSkipCNN"},
+        "loss": {"name": "combined", "alpha": 0.5},
+        "num_epochs": 20,
+    },
+    "transformer_combined": {
+        "model": {"name": "TransformerSaliency"},
+        "loss": {"name": "combined", "alpha": 0.5},
+        "num_epochs": 20,
     },
 }
 
