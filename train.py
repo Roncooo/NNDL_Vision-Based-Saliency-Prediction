@@ -4,7 +4,6 @@ import re
 from datetime import datetime
 
 import torch
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from data import create_dataloaders
