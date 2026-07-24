@@ -7,6 +7,11 @@ from custom_transforms import PairedTransforms
 from torch.utils.data import Dataset, DataLoader
 
 class SaliencyDataset(Dataset):
+    """
+    PyTorch Dataset for image / ground-truth saliency map pairs.
+    Images are loaded as RGB, maps as grayscale, and the given
+    transform (if any) is applied to both jointly.
+    """
     def __init__(self, image_files, map_files, image_dir, map_dir, transform=None):
         
         self.image_files = image_files
@@ -36,9 +41,9 @@ class SaliencyDataset(Dataset):
             print(f"Error loading{img_path}: {e}")
             raise e 
 
-print("SaliencyDataset class defined.")
 
 def _match_pairs(image_dir, map_dir):
+    """Sort and pair image/map filenames, checking that they match one-to-one."""
     images = sorted(os.listdir(image_dir))
     maps = sorted(os.listdir(map_dir))
     img_bases = [os.path.splitext(f)[0] for f in images]
@@ -47,6 +52,7 @@ def _match_pairs(image_dir, map_dir):
     return images, maps
 
 def worker_init_fn(worker_id):
+    """Ensures reproducible, worker-specific random seeds for DataLoader workers."""
     seed = torch.initial_seed() % 2**32
     random.seed(seed + worker_id)
     np.random.seed(seed + worker_id)
@@ -146,5 +152,3 @@ def create_mit_test_loader(cfg):
     )
     
     return mit_loader
-
-print("\n--- Data Preparation Complete ---")

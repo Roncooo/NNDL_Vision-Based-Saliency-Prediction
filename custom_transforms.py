@@ -2,6 +2,13 @@ import random
 import torchvision.transforms.functional as TF
 
 class PairedTransforms:
+    """
+    Applies the same transformation to both the input image and the
+    ground truth map (gt_map).
+    Augmentation: only horizontal flip is applied with a probability of 0.5 during training.
+    Resizing: both image and gt_map are resized to the target size.
+    Normalization: the image is normalized using ImageNet statistics.
+    """
     def __init__(self, target_size=(256, 256), is_train=True):
         self.target_size = target_size
         self.is_train = is_train
